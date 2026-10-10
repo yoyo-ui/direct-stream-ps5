@@ -32,6 +32,9 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4     # caches Gradle so re-runs are fast
 
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
       - name: Engine tests (JVM)
         run: ./gradlew :core:test --stacktrace
 
