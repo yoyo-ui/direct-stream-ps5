@@ -63,9 +63,7 @@ Use `--host 0.0.0.0` if you want to reach it from another device on your network
 
 ## Contact
 
-Questions, bug reports or ideas for this fork? Find me on Discord: **@youssefdev**
-
-You can also open an [issue](https://github.com/yoyo-ui/direct-stream-ps5/issues) on this repository.
+You can open an [issue](https://github.com/yoyo-ui/direct-stream-ps5/issues) on this repository.
 
 ## Credits
 
