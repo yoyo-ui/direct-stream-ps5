@@ -21,7 +21,14 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - uses: android-actions/setup-android@v3   # installs the SDK and accepts its licences
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: ''   # skip the obsolete 'tools' package that breaks sdkmanager
+
+      - name: Install SDK packages
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
       - uses: gradle/actions/setup-gradle@v4     # caches Gradle so re-runs are fast
 
