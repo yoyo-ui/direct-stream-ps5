@@ -61,6 +61,11 @@ python3 ps5_streamer.py
 
 Use `--host 0.0.0.0` if you want to reach it from another device on your network. Requires Python 3.9 or newer.
 
+#Intended Use
+
+Direct Stream PS5 is a general-purpose file transfer utility. It does not provide copyrighted games, license keys, or PlayStation system software. Users must ensure they have the legal right to access, download, and transfer any content they use with the tool.
+
+This project is independently developed and is not affiliated with or endorsed by Sony Interactive Entertainment. This notice does not imply authorization by Sony or override any applicable laws or platform terms.
 ## Contact
 
 You can open an [issue](https://github.com/yoyo-ui/direct-stream-ps5/issues) on this repository.
