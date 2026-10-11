@@ -4,7 +4,7 @@ A fork of [ChillQuant/direct-stream-ps5](https://github.com/ChillQuant/direct-st
 
 Direct Stream streams HTTP/HTTPS downloads straight into your PlayStation 5's storage over your local network via FTP, without saving the file to your phone or computer first.
 
-> This project is independent and is not affiliated with, endorsed by, or sponsored by Sony Interactive Entertainment. PlayStation and PS5 are trademarks of their respective owners.
+> **Independent project notice:** This project is independently developed and maintained. It is not affiliated with, authorized by, endorsed by, or sponsored by Sony Interactive Entertainment. PlayStation and PS5 are trademarks of their respective owners. All third-party names and marks are used solely to identify the relevant products or services.
 
 ---
 
@@ -61,11 +61,14 @@ python3 ps5_streamer.py
 
 Use `--host 0.0.0.0` if you want to reach it from another device on your network. Requires Python 3.9 or newer.
 
-#Intended Use
+## Intended Use
 
-Direct Stream PS5 is a general-purpose file transfer utility. It does not provide copyrighted games, license keys, or PlayStation system software. Users must ensure they have the legal right to access, download, and transfer any content they use with the tool.
+Direct Stream PS5 is a file transfer utility. It does not itself provide copyrighted games, license keys, or PlayStation system software. Users are responsible for ensuring that they have the necessary rights and permissions to access, download, store, and transfer any content used with the software.
 
-This project is independently developed and is not affiliated with or endorsed by Sony Interactive Entertainment. This notice does not imply authorization by Sony or override any applicable laws or platform terms.
+Users must comply with applicable laws, intellectual property rights, contractual obligations, and the terms applicable to their devices, accounts, and services. The availability of a technical feature does not establish that a particular use of that feature is authorized or lawful.
+
+This project is not intended to encourage copyright infringement, unauthorized access, or circumvention of technological protection measures. No representation is made that every possible use of the software is permitted by applicable law or by any third-party platform's terms.
+
 ## Contact
 
 You can open an [issue](https://github.com/yoyo-ui/direct-stream-ps5/issues) on this repository.
@@ -75,10 +78,22 @@ You can open an [issue](https://github.com/yoyo-ui/direct-stream-ps5/issues) on 
 - Original project and Python streamer by [ChillQuant](https://github.com/ChillQuant/direct-stream-ps5).
 - Android port and CI setup by [yoyo-ui](https://github.com/yoyo-ui) (Discord: @youssefdev).
 
-## Legal
+The original author's work is credited here to acknowledge its origin. This attribution does not imply that the original author endorses this fork or is responsible for its modifications.
 
-Use this tool only with content you own or are licensed to use, and only with consoles you own. You are responsible for complying with the laws and terms of service that apply to you. The software is provided as is, without warranty of any kind.
+## Legal Disclaimer
+
+This software is provided "AS IS", without warranties or conditions of any kind, to the maximum extent permitted by applicable law. The authors and contributors make no guarantees regarding the software's reliability, availability, fitness for a particular purpose, or suitability for any particular use.
+
+To the maximum extent permitted by applicable law, the authors and contributors shall not be liable for claims, damages, or other liabilities arising from the use of, inability to use, modification of, or distribution of the software. Nothing in this notice excludes or limits liability where such exclusion or limitation is prohibited by law.
+
+Users are responsible for their own use of the software and for determining whether that use complies with applicable law and third-party terms. This notice does not grant permission to use third-party intellectual property, bypass access controls, or distribute content without the necessary authorization.
+
+Nothing in this README constitutes a statement that Sony Interactive Entertainment or any other third party has reviewed, approved, certified, or authorized this project.
 
 ## License
 
-Released under the MIT License, the same as the original project. Keep the original `LICENSE` file and copyright notice in this repository.
+This project is distributed under the MIT License, subject to the terms of that license and any applicable licenses governing third-party components.
+
+The original `LICENSE` file and applicable copyright notices must be retained. Modifications and additions in this fork do not transfer ownership of the original project's code or grant rights to third-party software, trademarks, content, or other materials.
+
+Before redistributing this project or its packaged artifacts, verify that the relevant source files, dependencies, binaries, and other included materials may be redistributed under their applicable licenses.
