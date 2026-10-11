@@ -76,7 +76,8 @@ You can open an [issue](https://github.com/yoyo-ui/direct-stream-ps5/issues) on 
 ## Credits
 
 - Original project and Python streamer by [ChillQuant](https://github.com/ChillQuant/direct-stream-ps5).
-- Android port and CI setup by [yoyo-ui](https://github.com/yoyo-ui) (Discord: @youssefdev).
+- Android port and CI setup by [yoyo-ui](https://github.com/yoyo-ui)
+
 
 The original author's work is credited here to acknowledge its origin. This attribution does not imply that the original author endorses this fork or is responsible for its modifications.
 
