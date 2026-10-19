@@ -1,0 +1,191 @@
+name: Build Standalone Windows EXE & Android APK + Publish Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release version tag to publish (e.g. v3.0.0)'
+        required: false
+        default: 'v3.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  # ==========================================================================
+  # JOB 1: Build Standalone Windows .EXE (Bundles legacy engine + v3 updates)
+  # ==========================================================================
+  build-windows-exe:
+    name: Build Standalone PC (.exe) on Windows
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Apply v3.0 Integration if apply_repo_updates.py is present
+        run: |
+          if (Test-Path "apply_repo_updates.py") {
+            python apply_repo_updates.py
+          }
+
+      - name: Install PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+
+      - name: Build Standalone GUI & Console .EXE (Bundled with Legacy Engine)
+        run: |
+          pyinstaller --noconfirm --clean --onefile --windowed --name "DirectStreamPS5_PC" `
+            --hidden-import=resolver --hidden-import=transfer_core --hidden-import=zip_streamer --hidden-import=ps5_streamer `
+            ps5_direct_stream_pc.py
+          pyinstaller --noconfirm --clean --onefile --console --name "DirectStreamPS5_PC_CLI" `
+            --hidden-import=resolver --hidden-import=transfer_core --hidden-import=zip_streamer --hidden-import=ps5_streamer `
+            ps5_direct_stream_pc.py
+
+      - name: Package Portable Windows ZIP
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist/DirectStreamPS5_PC.exe, dist/DirectStreamPS5_PC_CLI.exe, ps5_direct_stream_pc.py -DestinationPath dist/DirectStreamPS5_PC_Windows_Portable.zip -Force
+
+      - name: Upload Windows .EXE Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: DirectStreamPS5-Windows-EXE
+          path: |
+            dist/DirectStreamPS5_PC.exe
+            dist/DirectStreamPS5_PC_CLI.exe
+            dist/DirectStreamPS5_PC_Windows_Portable.zip
+
+  # ==========================================================================
+  # JOB 2: Build Native Android .APK (Existing App + v3 Multi-Console/FTP/AutoUpdate Tab)
+  # ==========================================================================
+  build-android-apk:
+    name: Build Android (.apk) on Ubuntu
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Apply v3.0 Integration into Android Project
+        run: |
+          if [ -f "apply_repo_updates.py" ]; then
+            python3 apply_repo_updates.py
+          fi
+
+      - name: Run Core Tests & Assemble Android APK
+        working-directory: ./android
+        run: |
+          chmod +x gradlew
+          ./gradlew :core:test :app:assembleDebug --no-daemon
+
+      - name: Prepare Android APK Asset
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk ./DirectStreamPS5_Android.apk
+
+      - name: Upload Android APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DirectStreamPS5-Android-APK
+          path: DirectStreamPS5_Android.apk
+
+  # ==========================================================================
+  # JOB 3: Publish GitHub Release (Powers In-App GitHub Auto-Update)
+  # ==========================================================================
+  publish-release:
+    name: Publish GitHub Release (EXE + APK)
+    needs: [build-windows-exe, build-android-apk]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Windows EXE Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: DirectStreamPS5-Windows-EXE
+          path: ./release_assets
+
+      - name: Download Android APK Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: DirectStreamPS5-Android-APK
+          path: ./release_assets
+
+      - name: Determine Release Tag
+        id: tag
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "tag_name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          elif [[ -n "${{ github.event.inputs.release_tag }}" ]]; then
+            echo "tag_name=${{ github.event.inputs.release_tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag_name=v3.0.0" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate Formatted Release Notes (Arabic/English) & SHA-256 Checksums
+        working-directory: ./release_assets
+        run: |
+          sha256sum DirectStreamPS5_PC.exe DirectStreamPS5_PC_CLI.exe DirectStreamPS5_PC_Windows_Portable.zip DirectStreamPS5_Android.apk > SHA256SUMS.txt
+          cat << 'EOF' > RELEASE_NOTES.md
+          ## 🎮 Direct Stream for PlayStation 5 — ${{ steps.tag.outputs.tag_name }} (PC `.exe` + Android `.apk`)
+
+          ### ✨ التحديثات والمميزات الجديدة (What's New in ${{ steps.tag.outputs.tag_name }})
+          1. **التعرف التلقائي الذكي على صيغة اللعبة ومسار التثبيت (`SmartFormatDetector`)**:
+             - **حزم الألعاب (`.pkg`)**: توجيه تلقائي إلى `/data/pkg` للتثبيت عبر `Package Installer` أو `etaHEN`.
+             - **نسخ القرص (`ShadowMount`: `.ffpfsc`, `.exfat`, `.ufs`, `.iso`)**: توجيه تلقائي إلى `/data/ShadowMount`.
+             - **فولدرات الألعاب المفكوكة (`PPSAxxxx` / `CUSAxxxx` التي تحتوي على `sce_sys/param.json` و `eboot.bin`)**: نقل مباشر إلى `/data/homebrew/<TitleID>` للتشغيل عبر `itemzflow`.
+             - **الملفات المضغوطة والأرشيفات المقسمة (`.rar`, `.zip`, `.7z`, `.part01.rar`, `.001`)**: فك ضغط وتوجيه تلقائي إلى `/data/homebrew` أو `/data/ShadowMount`.
+             - **البايلود والإضافات والشفرات (`.elf`, `.bin`, `.prx`, `.sprx`, `.shn`, `.mc4`)**: توجيه تلقائي إلى `/data/payloads` و `/data/etaHEN/plugins` و `/data/etaHEN/cheats`.
+          2. **البث المتزامن لأكثر من جهاز بلايستيشن 5 في نفس الوقت (`Multi-Console Broadcast`)**:
+             - توصيل عدد غير محدود من أجهزة الـ PS5 مع فاحص شبكة تلقائي (`LAN Auto-Discovery` على منفذ `2121`).
+             - قراءة أو تحميل اللعبة مرة واحدة فقط في الرام (`Shared RAM Ring Buffer`) وبثها بالتوازي لكل الأجهزة المحددة في نفس اللحظة مع ملفات أمان `.ps5part`.
+          3. **مدير ملفات ونقل FTP حر شامل (`General FTP File Manager`)**:
+             - نقل أي ملف أو فولدر كامل لأي مسار على الـ PS5 (`/data`, `/mnt/ext0`, `/mnt/usb0`) بدون التقيد بالألعاب، مع تصفح وإنشاء وحذف الفولدرات.
+          4. **نسخة كمبيوتر مستقلة (`DirectStreamPS5_PC.exe`) + تطبيق أندرويد (`DirectStreamPS5_Android.apk`)**:
+             - ملف `.exe` مستقل تماماً للويندوز (واجهة سطح مكتب Native GUI + لوحة تحكم ويب) مدمج مع محرك استخراج الروابط الأساسي (`resolver.py`).
+          5. **التحديث التلقائي عبر GitHub Releases (`GitHub Auto-Updater`)**:
+             - تحديث تلقائي مباشر من داخل نسخة الـ PC وتطبيق الأندرويد عبر هذا الـ Release.
+
+          ### 📦 الملفات المرفقة للتحميل (Release Assets)
+          | الملف (Asset) | المنصة (Platform) | الوصف (Description) |
+          | :--- | :--- | :--- |
+          | `DirectStreamPS5_PC.exe` | Windows (x64 GUI) | نسخة الكمبيوتر المستقلة (تفتح الواجهة الرسومية + سيرفر الويب بدون الحاجة لتثبيت Python) |
+          | `DirectStreamPS5_PC_CLI.exe` | Windows (x64 CLI) | نسخة سطر الأوامر للكمبيوتر (`--gui`, `--self-update`, `--detect`) |
+          | `DirectStreamPS5_PC_Windows_Portable.zip` | Windows Portable | حزمة الويندوز الكاملة مضغوطة (`.exe` + السورس) |
+          | `DirectStreamPS5_Android.apk` | Android 10+ (API 29+) | تطبيق الأندرويد الكامل (Jetpack Compose Material 3 + Multi-Console + Auto-Update) |
+          | `SHA256SUMS.txt` | Checksums | بصمات التحقق الرقمية SHA-256 لجميع الملفات |
+
+          ### 🔐 بصمات التحقق (SHA-256 Checksums)
+          ```text
+          EOF
+          cat SHA256SUMS.txt >> RELEASE_NOTES.md
+          echo "          \`\`\`" >> RELEASE_NOTES.md
+
+      - name: Create or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag_name }}
+          name: "Direct Stream PS5 ${{ steps.tag.outputs.tag_name }} — Standalone PC (.exe) + Android (.apk)"
+          body_path: release_assets/RELEASE_NOTES.md
+          generate_release_notes: true
+          prerelease: false
+          files: |
+            release_assets/DirectStreamPS5_PC.exe
+            release_assets/DirectStreamPS5_PC_CLI.exe
+            release_assets/DirectStreamPS5_PC_Windows_Portable.zip
+            release_assets/DirectStreamPS5_Android.apk
+            release_assets/SHA256SUMS.txt
