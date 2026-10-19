@@ -245,10 +245,33 @@ class TestResolver(unittest.TestCase):
         h_viking = get_request_headers_for_url("https://s2.vikingfile.com/d/game.pkg")
         self.assertEqual(h_viking["Referer"], "https://vikingfile.com/")
 
+        h_torbox = get_request_headers_for_url("https://torbox.app/download/xyz/game.pkg")
+        self.assertEqual(h_torbox["Referer"], "https://torbox.app/")
+
+        h_tbcdn = get_request_headers_for_url("https://s123.tb-cdn.cx/download/xyz/game.pkg")
+        self.assertEqual(h_tbcdn["Referer"], "https://torbox.app/")
+
+        h_realdebrid = get_request_headers_for_url("https://12.download.real-debrid.com/d/xyz/game.pkg")
+        self.assertEqual(h_realdebrid["Referer"], "https://real-debrid.com/")
+
         self.assertTrue(is_single_connection_host("https://s1.datanodes.to/d/xyz"))
         self.assertTrue(is_single_connection_host("https://vikingfile.com/d/xyz"))
         self.assertTrue(is_single_connection_host("https://akirabox.to/file/xyz"))
+        self.assertTrue(is_single_connection_host("https://torbox.app/download/xyz"))
+        self.assertTrue(is_single_connection_host("https://api.torbox.app/v1/api/torrents/download/xyz"))
+        self.assertTrue(is_single_connection_host("https://node1.tb-cdn.cx/d/xyz/game.pkg"))
+        self.assertTrue(is_single_connection_host("https://node2.tb-cdn.sh/d/xyz/game.pkg"))
+        self.assertTrue(is_single_connection_host("https://10.download.real-debrid.com/d/xyz/game.pkg"))
+        self.assertTrue(is_single_connection_host("https://alldebrid.com/dl/xyz"))
+        self.assertTrue(is_single_connection_host("https://debrid-link.fr/dl/xyz"))
+        self.assertTrue(is_single_connection_host("https://www.premiumize.me/item/xyz"))
+        self.assertTrue(is_single_connection_host("https://mypikpak.com/drive/xyz"))
         self.assertFalse(is_single_connection_host("https://archive.org/download/item/file.pkg"))
+
+        from transfer_core import SourceInfo, make_reader, SequentialReader, StopToken, Meter
+        tb_src = SourceInfo(kind="url", location="https://node1.tb-cdn.cx/d/xyz/game.pkg", size=1000, ranges=True, original_url="https://torbox.app/download/xyz")
+        r = make_reader(tb_src, 0, {"streams": 16, "buffer_mb": 4, "chunk_mb": 1}, StopToken(), Meter())
+        self.assertIsInstance(r, SequentialReader)
 
 
     def test_manager_verify_links_empty_raises(self):

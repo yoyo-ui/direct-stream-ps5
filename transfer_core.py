@@ -206,6 +206,7 @@ class SourceInfo:
     filename: str = ""
     parts: list = None
     archive_info: dict = None
+    original_url: str = ""
 
     def identity(self):
         if (self.kind.startswith("zip_") or self.kind.startswith("archive_")) and self.archive_info:
@@ -284,6 +285,7 @@ def probe_source(kind, location, token, resolve_depth=0, decompress=True):
         return SourceInfo("local", path, stat.st_size, True,
             fingerprint=fp, filename=filename)
     location = valid_url(location)
+    orig_url = location
     if resolve_depth == 0:
         location = pre_resolve_url(location)
     req_headers = get_request_headers_for_url(location, HEADERS)
@@ -350,6 +352,7 @@ def probe_source(kind, location, token, resolve_depth=0, decompress=True):
                         modified=h.get("Last-Modified", ""),
                         filename=sel["basename"],
                         archive_info={**sel, "payload_offset": p_off, "total_archive_size": size, "archive_type": "zip"},
+                        original_url=orig_url,
                     )
                 else:
                     return SourceInfo(
@@ -361,6 +364,7 @@ def probe_source(kind, location, token, resolve_depth=0, decompress=True):
                         modified=h.get("Last-Modified", ""),
                         filename=sel["basename"],
                         archive_info={**sel, "payload_offset": 0, "total_archive_size": size, "archive_type": arch_type},
+                        original_url=orig_url,
                     )
             except EncryptedArchiveError as ex:
                 raise TransferError(str(ex)) from ex
@@ -369,7 +373,7 @@ def probe_source(kind, location, token, resolve_depth=0, decompress=True):
                     raise TransferError(f"Cannot decompress '{filename}': {ex}. Uncheck 'Decompress Archive' to transfer the raw archive file.") from ex
                 pass
         return SourceInfo("url", final_url, size, ranges, etag,
-                          h.get("Last-Modified", ""), filename=filename)
+                          h.get("Last-Modified", ""), filename=filename, original_url=orig_url)
 
 
 def probe_multipart_source(parts, token, target_filename=None):
@@ -397,7 +401,12 @@ def probe_multipart_source(parts, token, target_filename=None):
 
     if len(parts) > 100:
         raise TransferError("Cannot inspect more than 100 parts at once.")
-    with concurrent.futures.ThreadPoolExecutor(max_workers=min(8, len(parts))) as executor:
+    has_single_host = any(
+        is_single_connection_host(p.get("source", "") if isinstance(p, dict) else str(p))
+        for p in parts
+    )
+    max_workers = 1 if has_single_host else min(8, len(parts))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = [executor.submit(_probe_part, i, p) for i, p in enumerate(parts)]
         for f in futures:
             f.result()
@@ -572,7 +581,13 @@ class ParallelReader:
                                     headers["Referer"] = f"{p.scheme}://{p.hostname}/"
                                 conn.request("GET", path, headers=headers)
                                 r = conn.getresponse()
-                        if r.status in (408, 429, 500, 502, 503, 504):
+                        if r.status == 429:
+                            r.close()
+                            raise TransferError(
+                                f"Download rate limit exceeded (HTTP 429) from {p.hostname}. "
+                                "The host restricts concurrent connections. Go to Settings and set Streams to 1."
+                            )
+                        if r.status in (408, 500, 502, 503, 504):
                             # Release the connection before retrying a temporary source failure.
                             r.close()
                             raise OSError("Temporary HTTP error or source rate limit")
@@ -610,7 +625,7 @@ class ParallelReader:
                             conn.close()
                             conn = None
                         if attempt == 2:
-                            raise OSError(f"HTTP range failed after 3 attempts: {type(e).__name__}")
+                            raise OSError(f"HTTP range failed after 3 attempts: {e}")
                         self.token.wait(.5 * (attempt + 1))
                 with self.cv:
                     if self.closed.is_set():
@@ -884,9 +899,13 @@ class MultiPartReader:
             if self.current_reader is None:
                 return b""
 
-            # Trigger background pre-warming of next part when nearing end of current part
+            # Trigger background pre-warming of next part when nearing end of current part (skip for single-connection hosts to avoid concurrency blocks)
+            cur_loc = getattr(self.parts[self.current_idx], "location", "")
+            cur_orig = getattr(self.parts[self.current_idx], "original_url", "")
+            is_single = is_single_connection_host(cur_loc) or is_single_connection_host(cur_orig)
             if (
-                self.part_remaining <= 32 * MIB
+                not is_single
+                and self.part_remaining <= 32 * MIB
                 and self.current_idx + 1 < len(self.parts)
                 and self.next_reader is None
                 and not self.prewarming
@@ -948,7 +967,8 @@ class MultiPartReader:
 
 def make_reader(source, offset, settings, token, meter, on_part_change=None):
     loc = source.location if hasattr(source, "location") and isinstance(source.location, str) else ""
-    headers = get_request_headers_for_url(loc, settings.get("_headers") or HEADERS)
+    orig = getattr(source, "original_url", "") or ""
+    headers = get_request_headers_for_url(loc or orig, settings.get("_headers") or HEADERS)
     if source.kind.startswith("zip_"):
         return ZipStreamingReader(source, settings["buffer_mb"], token, meter, headers)
     if source.kind.startswith("archive_"):
@@ -956,7 +976,7 @@ def make_reader(source, offset, settings, token, meter, on_part_change=None):
     if source.kind == "multipart":
         return MultiPartReader(source, offset, settings, token, meter, on_part_change=on_part_change)
     if source.kind == "url" and source.ranges and source.size is not None and settings["streams"] > 1:
-        if not is_single_connection_host(source.location):
+        if not is_single_connection_host(loc) and not is_single_connection_host(orig):
             return ParallelReader(source, offset, settings["streams"], settings["buffer_mb"], settings["chunk_mb"], token, meter,
                                   headers)
     return SequentialReader(source, offset, settings["buffer_mb"], token, meter, headers)

@@ -397,6 +397,12 @@ def get_request_headers_for_url(url: str, base_headers: dict | None = None) -> d
             headers["Referer"] = "https://www.mediafire.com/"
         elif "1fichier.com" in domain:
             headers["Referer"] = "https://1fichier.com/"
+        elif "torbox" in domain or "tb-cdn" in domain:
+            headers["Referer"] = "https://torbox.app/"
+        elif "real-debrid.com" in domain or "rdb.gg" in domain:
+            headers["Referer"] = "https://real-debrid.com/"
+        elif "alldebrid" in domain:
+            headers["Referer"] = "https://alldebrid.com/"
         elif "Referer" not in headers and parsed.scheme and parsed.netloc:
             headers["Referer"] = f"{parsed.scheme}://{parsed.netloc}/"
     except Exception:
@@ -406,11 +412,13 @@ def get_request_headers_for_url(url: str, base_headers: dict | None = None) -> d
 
 
 def is_single_connection_host(url: str) -> bool:
-    """Return True if host is known to limit free users to 1 concurrent connection or has single-use tokens."""
+    """Return True if host is known to limit free users to 1 concurrent connection, has single-use tokens, or rate-limits multi-stream connections (including TorBox and debrid services)."""
     if not url or not isinstance(url, str):
         return False
     try:
         domain = urllib.parse.urlsplit(url).netloc.lower()
+        if any(k in domain for k in ("torbox", "tb-cdn", "real-debrid", "alldebrid", "debrid-link", "premiumize", "pikpak")):
+            return True
         single_hosts = (
             "datanodes.to",
             "vikingfile.com",
@@ -424,6 +432,16 @@ def is_single_connection_host(url: str) -> bool:
             "ddownload.com",
             "katfile.com",
             "nitroflare.com",
+            "torbox.app",
+            "torbox.online",
+            "real-debrid.com",
+            "rdb.gg",
+            "alldebrid.com",
+            "alldebrid.fr",
+            "debrid-link.fr",
+            "premiumize.me",
+            "pikpak.me",
+            "mypikpak.com",
         )
         return any(h in domain for h in single_hosts)
     except Exception:
